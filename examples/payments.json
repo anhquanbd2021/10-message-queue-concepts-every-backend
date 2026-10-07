@@ -1,0 +1,12 @@
+[
+  { "key": "pay-1000", "value": "charge-$10" },
+  { "key": "pay-1001", "value": "charge-$20" },
+  { "key": "pay-1002", "value": "charge-$30" },
+  { "key": "pay-1003", "value": "charge-$40" },
+  { "key": "pay-1004", "value": "charge-$50" },
+  { "key": "pay-1005", "value": "charge-$60" },
+  { "key": "pay-1006", "value": "charge-$70" },
+  { "key": "pay-1007", "value": "charge-$80" },
+  { "key": "pay-1008", "value": "charge-$90" },
+  { "key": "pay-1009", "value": "charge-$100" }
+]

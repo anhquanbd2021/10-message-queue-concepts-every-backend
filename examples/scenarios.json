@@ -1,0 +1,28 @@
+{
+  "crash": { "crashAfter": 5 },
+  "poison": { "maxAttempts": 3 },
+  "backpressure": {
+    "producerRate": 5,
+    "consumerRate": 3,
+    "ticks": 12,
+    "capacity": 20,
+    "alertAt": 15,
+    "stallTick": 8
+  },
+  "fanout": { "crashAfterCommits": 3 },
+  "ordering": {
+    "partitions": 3,
+    "keylessCount": 4,
+    "keyedEvents": [
+      { "key": "customer-c3", "value": "order-1001 created" },
+      { "key": "customer-c7", "value": "order-1002 created" },
+      { "key": "customer-c3", "value": "order-1001 paid" },
+      { "key": "customer-c1", "value": "order-1003 created" },
+      { "key": "customer-c7", "value": "order-1002 paid" },
+      { "key": "customer-c3", "value": "order-1001 shipped" },
+      { "key": "customer-c1", "value": "order-1003 paid" },
+      { "key": "customer-c7", "value": "order-1002 shipped" },
+      { "key": "customer-c3", "value": "order-1001 delivered" }
+    ]
+  }
+}

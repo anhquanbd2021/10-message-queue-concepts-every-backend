@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Mechanics guide for Queue Guarantees Lab — what the toy broker models and where the model stops.">
+  <title>Queue Guarantees Lab — mechanics guide</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+<!-- pb-shell --><link rel="stylesheet" href="./pb-shell.css"><!-- pb-shell --><!-- pb-back --><link rel="stylesheet" href="./pb-back.css"><!-- pb-back --></head>
+<body>
+<main>
+  <nav aria-label="Primary"><a href="/">Lab</a><a aria-current="page" href="/guide.html">Guide</a><a href="https://github.com/anhquanbd2021/10-message-queue-concepts-every-backend">Source</a></nav>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Queue Guarantees Lab · mechanics</p>
+      <h1>Mechanics guide</h1>
+      <p class="lede">Queue Guarantees Lab models a toy broker: a partitioned append-only log and consumer groups that each keep a durable committed offset. Everything the labs show falls out of two facts — delivery and commit are separate events, and every group owns its own bookmark.</p>
+    </div>
+  </header>
+
+  <section class="guide-section panel">
+    <h2>Delivery lab — at-least-once is a trade, not a feature</h2>
+    <p><code>poll()</code> delivers records from the committed offset but moves no bookmark. <code>commit()</code> moves it — only after the handler's work. The crash lands between the two: the charge applied, the bookmark didn't. On restart the consumer resumes from the committed offset and the tail is redelivered. That is at-least-once delivery — duplicates are the price of not losing.</p>
+    <p><strong>Naive vs idempotent:</strong> the naive handler applies the effect on every delivery — the crashed record's charge applies twice (11 effects for 10 events). The idempotent consumer keeps a dedupe store keyed on <code>partition:offset</code> (a real system prefers a business key like a payment id); the redelivery is seen, acknowledged, and skipped — 10 effects.</p>
+  </section>
+
+  <section class="guide-section panel">
+    <h2>Dead-letter lab — quarantine, not a trash can</h2>
+    <p><code>recordFailure()</code> counts attempts. Below <code>maxAttempts</code> the record stays uncommitted, so the next <code>poll()</code> redelivers it — the retry. At the cap it is <em>parked</em>: pushed to the DLQ and committed past, so one poison message can't hold the partition hostage while job-5 waits forever.</p>
+    <p><strong>What belongs:</strong> messages that can never succeed — corrupt payloads, schema mismatches. Transient failures (a downstream timeout) deserve backoff retries, not the DLQ. And a DLQ nobody drains is a graveyard — <code>drainDlq()</code> hands parked records back for replay or audit.</p>
+  </section>
+
+  <section class="guide-section panel">
+    <h2>Backpressure lab — depth is the metric</h2>
+    <p>Each tick produces <code>producerRate</code> and consumes <code>consumerRate</code>; the queue absorbs the difference. Depth grows <code>producer − consumer</code> per tick, so a 5-vs-3 gap adds 2/tick: the alert line (15) is crossed at tick 7, capacity (20) shortly after. This model's overflow policy blocks the producer — real systems also drop, spill, or autoscale, but every policy is a choice someone made or a default someone didn't.</p>
+    <p><strong>Recovery:</strong> stall the producer at tick 8 and depth still falls only at consumer rate — a 16-deep backlog at 3/tick takes ~5 more ticks to drain. Queue depth (consumer lag) is the alert that sees this coming; "service is up" never does.</p>
+  </section>
+
+  <section class="guide-section panel">
+    <h2>Fan-out lab — every group keeps its own bookmark</h2>
+    <p><code>billing</code> and <code>analytics</code> are two groups on one topic. Each has a private committed-offset map, so each sees every record — one write, many independent reads. Crash billing mid-read and only billing redelivers; rewind billing and it replays history while analytics never notices. A second consumer in the <em>same</em> group would split the work instead of copying it — group membership decides which semantics you get.</p>
+    <p><strong>Ordering lives here too:</strong> the partition lanes show the contract — <code>hash(key) mod partitions</code> pins every <code>customer-c3</code> event to one lane, in produce order. There is no global order across lanes, and keyless events scatter to whichever partition the cursor points at.</p>
+  </section>
+
+  <section class="guide-section panel">
+    <h2>Honest limits</h2>
+    <ul>
+      <li>This is an in-memory model of the mechanics — not a broker. No network, no real protocol, no persistence.</li>
+      <li>Crashes are injected deterministically between work and commit; real crashes land anywhere — the dedupe store must cover every record, not just suspicious ones.</li>
+      <li>One member per group; real groups assign partitions across members and rebalance on joins/leaves.</li>
+      <li>The backpressure model picks one overflow policy (block); real brokers also drop, page to disk, or push back on producers with quotas.</li>
+      <li>The dedupe store is an in-memory Set; production needs durable storage with a retention window longer than the redelivery horizon.</li>
+    </ul>
+  </section>
+</main>
+<!-- pb-shell --><a class="pb-shell" href="https://github.com/anhquanbd2021/10-message-queue-concepts-every-backend" title="10-message-queue-concepts-every-backend — an Article Playbook demo (view source)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="2" width="9" height="9" rx="2" fill="#2dd4bf"/><rect x="13" y="2" width="9" height="9" rx="2" fill="#2dd4bf" opacity=".45"/><rect x="2" y="13" width="9" height="9" rx="2" fill="#2dd4bf" opacity=".45"/><rect x="13" y="13" width="9" height="9" rx="4.5" fill="#2dd4bf"/></svg><b>10-message-queue-concepts-every-backend</b><i>DEMO</i></a><!-- pb-shell --><!-- pb-back --><a class="pb-back" id="pb-back" href="https://github.com/anhquanbd2021/10-message-queue-concepts-every-backend" title="Back to the article — 10-message-queue-concepts-every-backend">← Article <i>PLAYBOOK</i></a><script>(function(){var a=document.getElementById('pb-back');if(!a)return;var h=location.hostname;if(/^(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(h)){a.href='//'+h+':'+(/^(localhost|127\.0\.0\.1)$/.test(h)?'1234':'30082')+'/microsites/article.html?slug=10-message-queue-concepts-every-backend';}})();</script><!-- pb-back --></body>
+</html>

@@ -1,0 +1,10 @@
+[
+  { "key": "job-0", "value": "job-0" },
+  { "key": "job-1", "value": "job-1" },
+  { "key": "job-2", "value": "job-2" },
+  { "key": "job-3", "value": "job-3" },
+  { "key": "job-4", "value": "CORRUPT-PAYLOAD" },
+  { "key": "job-5", "value": "job-5" },
+  { "key": "job-6", "value": "job-6" },
+  { "key": "job-7", "value": "job-7" }
+]

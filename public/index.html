@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Queue Guarantees Lab — a toy broker that crashes a consumer between work and commit, parks a poison message in the DLQ, overflows a queue under backpressure, and fans out to two independent consumer groups.">
+  <title>Queue Guarantees Lab — the second half breaks first</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+<!-- pb-shell --><link rel="stylesheet" href="./pb-shell.css"><!-- pb-shell --><!-- pb-back --><link rel="stylesheet" href="./pb-back.css"><!-- pb-back --></head>
+<body>
+<main>
+  <nav aria-label="Primary"><a aria-current="page" href="/">Lab</a><a href="/guide.html">Guide</a><a href="https://github.com/anhquanbd2021/10-message-queue-concepts-every-backend">Source</a></nav>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Queue Guarantees Lab · toy broker</p>
+      <h1>The flow is five concepts. The guarantees are the other five — and they break first.</h1>
+      <p class="lede">Crash a consumer <strong>between the work and the commit</strong> and watch at-least-once redeliver the tail — then dedupe it. Park a poison message in the dead-letter queue. Outrun the consumer and watch queue depth climb to the wall. Read one topic from two consumer groups and learn that every group keeps its own bookmark.</p>
+    </div>
+    <p class="warning"><strong>Safe educational demo.</strong> Everything runs in your browser — no network calls, no real broker, no Kafka client. It's a model of the mechanics, not the infrastructure.</p>
+  </header>
+
+  <section class="workspace" aria-label="Delivery lab">
+    <section class="panel controls" aria-labelledby="dl-title">
+      <div><p class="eyebrow">Delivery lab</p><h2 id="dl-title">At-least-once: crash between work and commit</h2></div>
+      <label for="dl-crash"><span class="control-row">Crash after N commits <span class="out" id="dl-crash-out">5</span></span><input type="range" id="dl-crash" min="1" max="9" value="5"></label>
+      <div class="btn-row">
+        <button id="dl-naive" type="button">Run naive handler</button>
+        <button id="dl-idem" type="button" class="secondary">Run idempotent consumer</button>
+      </div>
+      <p class="muted">10 payments, one partition, one crash — landing <em>after</em> the charge, <em>before</em> the offset commit. Restart redelivers the tail. A dedupe store keyed on <code>partition:offset</code> is what turns redelivery into exactly-once effects.</p>
+    </section>
+    <section class="panel" aria-labelledby="dl-results-title">
+      <div class="section-heading"><div><p class="eyebrow">Report</p><h2 id="dl-results-title">After the crash</h2></div><span id="dl-badge" class="badge" role="status" aria-live="polite">Ready</span></div>
+      <ul class="stat-grid">
+        <li><span class="stat-num" id="dl-delivered">—</span><span class="stat-label">deliveries</span></li>
+        <li><span class="stat-num" id="dl-redel">—</span><span class="stat-label">redelivered</span></li>
+        <li><span class="stat-num" id="dl-applied">—</span><span class="stat-label">effects applied</span></li>
+        <li><span class="stat-num" id="dl-lost">—</span><span class="stat-label">lost</span></li>
+      </ul>
+      <ol id="dl-log" class="results compact" aria-label="Event outcomes"></ol>
+    </section>
+  </section>
+
+  <section class="workspace" aria-label="Dead-letter lab">
+    <section class="panel controls" aria-labelledby="dq-title">
+      <div><p class="eyebrow">Dead-letter lab</p><h2 id="dq-title">The poison message: retry, retry, park</h2></div>
+      <div class="btn-row">
+        <button id="dq-run" type="button">Run 8 jobs (job-4 is poison)</button>
+        <button id="dq-drain" type="button" class="secondary" disabled>Drain the DLQ</button>
+      </div>
+      <p class="muted"><code>job-4</code> carries a corrupt payload — it can <em>never</em> succeed. Below <code>maxAttempts</code> it is redelivered (a retry); at the cap it is parked so the partition behind it unblocks. Then someone has to drain it — a DLQ nobody drains is a graveyard.</p>
+    </section>
+    <section class="panel" aria-labelledby="dq-results-title">
+      <div class="section-heading"><div><p class="eyebrow">Report</p><h2 id="dq-results-title">Attempts &amp; parking</h2></div><span id="dq-badge" class="badge" role="status" aria-live="polite">Ready</span></div>
+      <ol id="dq-log" class="results compact" aria-label="Job outcomes"></ol>
+      <p class="muted" id="dq-dlq">DLQ: empty</p>
+    </section>
+  </section>
+
+  <section class="workspace" aria-label="Backpressure lab">
+    <section class="panel controls" aria-labelledby="bp-title">
+      <div><p class="eyebrow">Backpressure lab</p><h2 id="bp-title">When the producer outruns the consumer</h2></div>
+      <label for="bp-prod"><span class="control-row">Producer rate / tick <span class="out" id="bp-prod-out">5</span></span><input type="range" id="bp-prod" min="1" max="10" value="5"></label>
+      <label for="bp-cons"><span class="control-row">Consumer rate / tick <span class="out" id="bp-cons-out">3</span></span><input type="range" id="bp-cons" min="1" max="10" value="3"></label>
+      <label for="bp-stall"><span class="control-row">Producer stalls at tick <span class="out" id="bp-stall-out">never</span></span><input type="range" id="bp-stall" min="0" max="12" value="12"></label>
+      <button id="bp-run" type="button">Run 12 ticks (capacity 20, alert at 15)</button>
+      <p class="muted">Queue depth grows by <code>producer − consumer</code> each tick. Past the alert line a human should already be paged; at capacity someone chooses the overflow policy — here the producer is blocked. Stall the producer and the backlog still takes ticks to drain.</p>
+    </section>
+    <section class="panel" aria-labelledby="bp-results-title">
+      <div class="section-heading"><div><p class="eyebrow">Gauge</p><h2 id="bp-results-title">Queue depth per tick</h2></div><span id="bp-badge" class="badge" role="status" aria-live="polite">Ready</span></div>
+      <div id="bp-chart" class="depth-chart" aria-label="Queue depth bars"></div>
+      <div class="chart-legend">
+        <span class="legend-key"><span class="swatch pass" aria-hidden="true"></span>below alert</span>
+        <span class="legend-key"><span class="swatch warn" aria-hidden="true"></span>at alert</span>
+        <span class="legend-key"><span class="swatch fail" aria-hidden="true"></span>at capacity</span>
+      </div>
+      <ul class="stat-grid">
+        <li><span class="stat-num" id="bp-peak">—</span><span class="stat-label">peak depth</span></li>
+        <li><span class="stat-num" id="bp-alert">—</span><span class="stat-label">alert tick</span></li>
+        <li><span class="stat-num" id="bp-blocked">—</span><span class="stat-label">blocked msgs</span></li>
+      </ul>
+    </section>
+  </section>
+
+  <section class="workspace" aria-label="Fan-out lab">
+    <section class="panel controls" aria-labelledby="fo-title">
+      <div><p class="eyebrow">Fan-out lab</p><h2 id="fo-title">One write, two independent readers</h2></div>
+      <div class="btn-row">
+        <button id="fo-run" type="button">billing + analytics read</button>
+        <button id="fo-crash" type="button" class="secondary">Crash billing mid-read</button>
+        <button id="fo-rewind" type="button" class="secondary">Rewind billing</button>
+      </div>
+      <p class="muted">Each consumer <em>group</em> keeps its own committed offset — so every group sees every record, and a crash or replay in one never touches the other. Below: the same topic's partition lanes. The ordering contract lives here too — same key, same lane, produce order; keyless events scatter.</p>
+    </section>
+    <section class="panel" aria-labelledby="fo-results-title">
+      <div class="section-heading"><div><p class="eyebrow">Groups</p><h2 id="fo-results-title">Offsets per group</h2></div><span id="fo-badge" class="badge" role="status" aria-live="polite">Ready</span></div>
+      <ol id="fo-groups" class="lanes" aria-label="Consumer groups"></ol>
+      <ol id="fo-lanes" class="lanes" aria-label="Partition lanes"></ol>
+    </section>
+  </section>
+
+  <p class="footline"><a href="/guide.html">Read the mechanics guide</a> · <a href="https://github.com/anhquanbd2021/10-message-queue-concepts-every-backend">Inspect source and tests</a></p>
+</main>
+<script type="module" src="/app.js"></script>
+<!-- pb-shell --><a class="pb-shell" href="https://github.com/anhquanbd2021/10-message-queue-concepts-every-backend" title="10-message-queue-concepts-every-backend — an Article Playbook demo (view source)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="2" width="9" height="9" rx="2" fill="#2dd4bf"/><rect x="13" y="2" width="9" height="9" rx="2" fill="#2dd4bf" opacity=".45"/><rect x="2" y="13" width="9" height="9" rx="2" fill="#2dd4bf" opacity=".45"/><rect x="13" y="13" width="9" height="9" rx="4.5" fill="#2dd4bf"/></svg><b>10-message-queue-concepts-every-backend</b><i>DEMO</i></a><!-- pb-shell --><!-- pb-back --><a class="pb-back" id="pb-back" href="https://github.com/anhquanbd2021/10-message-queue-concepts-every-backend" title="Back to the article — 10-message-queue-concepts-every-backend">← Article <i>PLAYBOOK</i></a><script>(function(){var a=document.getElementById('pb-back');if(!a)return;var h=location.hostname;if(/^(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(h)){a.href='//'+h+':'+(/^(localhost|127\.0\.0\.1)$/.test(h)?'1234':'30082')+'/microsites/article.html?slug=10-message-queue-concepts-every-backend';}})();</script><!-- pb-back --></body>
+</html>

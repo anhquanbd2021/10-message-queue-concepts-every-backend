@@ -1,0 +1,16 @@
+{
+  "name": "queue-guarantees-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Queue Guarantees Lab — crash a consumer between work and commit, watch at-least-once redeliver, dedupe the duplicate, park a poison message in the DLQ, and watch queue depth grow under backpressure.",
+  "scripts": {
+    "start": "node app/server.js",
+    "report": "node scripts/lab-report.mjs",
+    "test": "node --test \"test/*.test.mjs\"",
+    "check": "npm test && npm run report"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
